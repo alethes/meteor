@@ -1,4 +1,5 @@
 var _ = require('underscore');
+var fs = require('fs');
 var path = require('path');
 
 var archinfo = require('./archinfo.js');
@@ -26,6 +27,19 @@ var compiler = exports;
 // target creation (eg minifiers and dev-bundle-fetcher) don't require you to
 // update BUILT_BY, though you will need to quit and rerun "meteor run".)
 compiler.BUILT_BY = 'meteor/15';
+
+var log = function(msg){
+  console.log(msg + "                  ");
+}
+
+compiler.sourceCache = {}
+compiler.addToSourceCache = function (relPath, compiledItem, target) {
+  compiler.sourceCache[relPath] = {
+    mtime: (new Date).getTime(),
+    data: compiledItem,
+    target: target
+  }
+}
 
 compiler.compile = function (packageSource, options) {
   buildmessage.assertInCapture();
@@ -293,18 +307,22 @@ var compileUnibuild = function (options) {
   // *** Process each source file
   var addAsset = function (contents, relPath, hash) {
     // XXX hack
+    var oRelPath = relPath;
     if (! inputSourceArch.pkg.name)
       relPath = relPath.replace(/^(private|public)\//, '');
 
-    resources.push({
+    var data = {
       type: "asset",
       data: contents,
       path: relPath,
       servePath: path.join(inputSourceArch.pkg.serveRoot, relPath),
       hash: hash
-    });
-  };
+    };
 
+    compiler.addToSourceCache(oRelPath, data, "resources");
+    resources.push(data);
+  };
+  log("Arch: " + inputSourceArch.arch);
   _.each(sourceItems, function (source) {
     var relPath = source.relPath;
     var fileOptions = _.clone(source.fileOptions) || {};
@@ -312,6 +330,22 @@ var compileUnibuild = function (options) {
     var filename = path.basename(relPath);
     var file = watch.readAndWatchFileWithHash(watchSet, absPath);
     var contents = file.contents;
+
+    if (false && compiler.sourceCache[relPath] &&
+        fs.statSync(absPath).mtime < compiler.sourceCache[relPath].mtime) {
+      if(compiler.sourceCache[relPath].target === "js"){
+        //Retrieve file from the source cache unless it's already in the prelink cache.
+        //if(! compiler.prelinkCache[arch][relPath]){
+        js.push(compiler.sourceCache[relPath].data);
+        log("Taking source item " + relPath + " from cache");
+        //}
+      }else
+        resources.push(compiler.sourceCache[relPath].data);
+        log("Taking source item " + relPath + " from cache");
+      return;
+    }
+
+    log("Adding source item " + relPath)
 
     if (contents === null) {
       buildmessage.error("File not found: " + source.relPath);
@@ -592,10 +626,13 @@ var compileUnibuild = function (options) {
           throw new Error("'section' must be 'head' or 'body'");
         if (typeof options.data !== "string")
           throw new Error("'data' option to appendDocument must be a string");
-        resources.push({
+        var data = {
           type: options.section,
           data: new Buffer(options.data, 'utf8')
-        });
+        };
+
+        compiler.addToSourceCache(options.path, data, "resources");
+        resources.push(data);
       },
 
       /**
@@ -623,13 +660,17 @@ var compileUnibuild = function (options) {
                           "web targets");
         if (typeof options.data !== "string")
           throw new Error("'data' option to addStylesheet must be a string");
-        resources.push({
+        
+        var data = {
           type: "css",
           refreshable: true,
           data: new Buffer(options.data, 'utf8'),
           servePath: path.join(inputSourceArch.pkg.serveRoot, options.path),
           sourceMap: options.sourceMap
-        });
+        };
+
+        compiler.addToSourceCache(options.path, data, "resources");
+        resources.push(data);
       },
 
       /**
@@ -662,14 +703,17 @@ var compileUnibuild = function (options) {
           bare = options.bare;
         }
 
-        js.push({
+        var data = {
           source: options.data,
           sourcePath: options.sourcePath,
           servePath: path.join(inputSourceArch.pkg.serveRoot, options.path),
           bare: !! bare,
           sourceMap: options.sourceMap,
           sourceHash: options._hash
-        });
+        };
+
+        compiler.addToSourceCache(options.sourcePath, data, "js");
+        js.push(data);
       },
 
       /**

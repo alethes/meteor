@@ -2017,11 +2017,12 @@ exports.bundle = function (options) {
     // Create a Isopack object that represents the app
     var packageSource = new PackageSource;
     packageSource.initFromAppDir(projectContext, exports.ignoreFiles);
+    console.time("compilation");
     var app = compiler.compile(packageSource, {
       packageMap: projectContext.packageMap,
       isopackCache: projectContext.isopackCache
     }).isopack;
-
+    console.timeEnd("compilation");
     var clientTargets = [];
     // Client
     _.each(webArchs, function (arch) {
