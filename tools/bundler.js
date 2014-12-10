@@ -2024,6 +2024,7 @@ exports.bundle = function (options) {
       isopackCache: projectContext.isopackCache
     }).isopack;
     console.timeEnd("compilation");
+    console.time("Client targets");
     var clientTargets = [];
     // Client
     _.each(webArchs, function (arch) {
@@ -2032,11 +2033,14 @@ exports.bundle = function (options) {
       targets[arch] = client;
     });
 
+    console.timeEnd("Client targets");
     // Server
+    console.time("Server target");
     if (! options.hasCachedBundle) {
       var server = makeServerTarget(app, clientTargets);
       targets.server = server;
     }
+    console.timeEnd("Server target");
 
     // Create a "control program". This is required for an old version of
     // Galaxy.
@@ -2046,7 +2050,6 @@ exports.bundle = function (options) {
       targets["ctl"] = target;
       controlProgram = "ctl";
     }
-
     // Hack to let servers find relative paths to clients. Should find
     // another solution eventually (probably some kind of mount
     // directive that mounts the client bundle in the server at runtime)
