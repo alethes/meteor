@@ -61,11 +61,13 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
     }
     
     if(compiler.sourceCache[key]){
-      compiler.sourceCache[key].mtime = now;
+      compiler.sourceCache[key].mtime[arch.arch] = now;
     }else{
+      var mtime = {};
+      mtime[arch.arch] = now;
       compiler.sourceCache[key] = {
         target: target,
-        mtime: now
+        mtime: mtime
       };
     }
     compiler.sourceCache[key][arch.arch] = compiledItem;
@@ -369,6 +371,12 @@ var compileUnibuild = function (options) {
   };
 
   log("Arch: " + inputSourceArch.arch);
+
+  if(!isopk.archChanged)
+    isopk.archChanged = {};
+
+  isopk.archChanged[inputSourceArch.arch] = false;
+
   _.each(sourceItems, function (source) {
     var relPath = source.relPath;
     var fileOptions = _.clone(source.fileOptions) || {};
@@ -380,6 +388,8 @@ var compileUnibuild = function (options) {
     var key = compiler.getSourceCacheKey(relPath, inputSourceArch);
     
     //console.log("lookup", key, !!compiler.sourceCache[key]);
+    //if(compiler.sourceCache[key])
+    //  console.log("Updated: ", fs.statSync(absPath).mtime > compiler.sourceCache[key].mtime);
     if (process.env.METEOR_SOURCE_CACHE && compiler.sourceCache[key] &&
         (compiler.sourceCache[key].target !== "js" || compiler.sourceCache[key][inputSourceArch.arch]) &&
         fs.statSync(absPath).mtime < compiler.sourceCache[key].mtime) {
@@ -403,9 +413,7 @@ var compileUnibuild = function (options) {
       return;
     }
 
-    if(inputSourceArch.arch === "os" && /chroma\.(?:js|coffee)$/.test(relPath)){
-      //log(inputSourceArch.arch + ": Adding source item " + relPath);
-    }
+    isopk.archChanged[inputSourceArch.arch] = true;
 
     if (contents === null) {
       buildmessage.error("File not found: " + source.relPath);

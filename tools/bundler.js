@@ -2024,6 +2024,7 @@ exports.bundle = function (options) {
       isopackCache: projectContext.isopackCache
     }).isopack;
     console.timeEnd("compilation");
+    console.log("Client changed: ", app.archChanged["web.browser"]);
     console.time("Client targets");
     var clientTargets = [];
     // Client
@@ -2035,6 +2036,7 @@ exports.bundle = function (options) {
 
     console.timeEnd("Client targets");
     // Server
+    console.log("Server changed: ", app.archChanged["os"]);
     console.time("Server target");
     if (! options.hasCachedBundle) {
       var server = makeServerTarget(app, clientTargets);
