@@ -788,8 +788,8 @@ _.extend(AppRunner.prototype, {
           runLog.log('Exited from signal: ' + runResult.signal, { arrow: true });
         } else if (runResult.code !== undefined) {
           runLog.log('Exited with code: ' + runResult.code, { arrow: true });
-          compiler.sourceCache = {};
-          compiler.prelinkCache = {};
+          //compiler.sourceCache = {};
+          //compiler.prelinkCache = {};
         } else {
           // explanation should already have been logged
         }

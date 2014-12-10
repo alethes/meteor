@@ -54,8 +54,12 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
 
   //Assume only js has arch-specific builds
   if(target === "js"){
-    for(cArch in compiler.prelinkCache)
+    
+    for(cArch in compiler.prelinkCache){
+      //log("Deleting " + relPath + " from prelinkCache for " + cArch);
       delete compiler.prelinkCache[cArch][relPath];
+    }
+    
     if(compiler.sourceCache[key]){
       compiler.sourceCache[key].mtime = now;
     }else{
@@ -66,8 +70,6 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
     }
     compiler.sourceCache[key][arch.arch] = compiledItem;
   }else{
-    if(compiledItem.type === "css")
-      console.log(key);
     compiler.sourceCache[key] = {
       mtime: now,
       data: compiledItem,
@@ -218,7 +220,7 @@ var compileUnibuild = function (options) {
   pluginProviderPackageNames[isopk.name] = true;
   var watchSet = inputSourceArch.watchSet.clone();
 
-  if(!compiler.prelinkCache[inputSourceArch.arch])
+  if(process.env.METEOR_PRELINK_CACHE && !compiler.prelinkCache[inputSourceArch.arch])
     compiler.prelinkCache[inputSourceArch.arch] = {};
 
   // *** Determine and load active plugins
@@ -383,9 +385,16 @@ var compileUnibuild = function (options) {
         fs.statSync(absPath).mtime < compiler.sourceCache[key].mtime) {
       if(compiler.sourceCache[key].target === "js"){
         //Retrieve the file from the source cache unless it's already in the prelink cache.
-        if(!compiler.prelinkCache[inputSourceArch.arch][relPath]){
+        //Then, push the file name to the list of js source items to be replaced during prelinking
+        //with an appropriate entry from the prelink cache.
+        if(process.env.METEOR_PRELINK_CACHE){
+          if(compiler.prelinkCache[inputSourceArch.arch][relPath]){
+            js.push(relPath);
+          }else{
+            js.push(compiler.sourceCache[key][inputSourceArch.arch]);
+          }
+        }else{
           js.push(compiler.sourceCache[key][inputSourceArch.arch]);
-        //log("Taking source item " + key + " from cache");
         }
       }else{
         resources.push(compiler.sourceCache[key].data);
@@ -394,7 +403,9 @@ var compileUnibuild = function (options) {
       return;
     }
 
-    log(inputSourceArch.arch + ": Adding source item " + relPath);
+    if(inputSourceArch.arch === "os" && /chroma\.(?:js|coffee)$/.test(relPath)){
+      //log(inputSourceArch.arch + ": Adding source item " + relPath);
+    }
 
     if (contents === null) {
       buildmessage.error("File not found: " + source.relPath);
@@ -843,7 +854,7 @@ var compileUnibuild = function (options) {
     declaredExports: _.pluck(inputSourceArch.declaredExports, 'name'),
     jsAnalyze: jsAnalyze,
     noLineNumbers: noLineNumbers,
-    fileCache: compiler.prelinkCache[inputSourceArch.arch]
+    fileCache: process.env.METEOR_PRELINK_CACHE ? compiler.prelinkCache[inputSourceArch.arch] : null
   });
   console.timeEnd("prelink");
 

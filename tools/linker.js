@@ -523,18 +523,32 @@ var prelink = function (options) {
     jsAnalyze: options.jsAnalyze,
     noLineNumbers: options.noLineNumbers
   });
-
-  console.log(options.inputFiles.length);
+  /*
+  console.log("Prelink - new files: " + options.inputFiles.length);
   _.each(options.inputFiles, function (inputFile) {
+    console.log("New file: " + inputFile.sourcePath);
     module.addFile(inputFile);
   });
+  */
 
   if(options.fileCache){
-    for(f in options.fileCache){
-      module.files.push(options.fileCache[f]);
-    }
+    _.each(options.inputFiles, function (inputFile) {
+      if(_.isString(inputFile)){
+        module.addFile(options.fileCache[inputFile]);
+      }else{
+        module.addFile(inputFile); 
+      }
+    });
     _.each(module.files, function (prelinkedFile) {
+      //if(/chroma/.test(prelinkedFile.sourcePath))
+      //console.log("Adding to prelinkCache: " + prelinkedFile.sourcePath);
+      //console.log(prelinkedFile);
       options.fileCache[prelinkedFile.sourcePath] = prelinkedFile;
+    });
+  }else{
+    _.each(options.inputFiles, function (inputFile) {
+      //console.log("New file: " + inputFile.sourcePath);
+      module.addFile(inputFile);
     });
   }
 
