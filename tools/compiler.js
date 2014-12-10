@@ -33,13 +33,40 @@ var log = function(msg){
 }
 
 compiler.sourceCache = {}
-compiler.addToSourceCache = function (relPath, compiledItem, target) {
-  if(!process.env.METEOR_SOURCE_CACHE)return;
-  
-  compiler.sourceCache[relPath] = {
-    mtime: (new Date).getTime(),
-    data: compiledItem,
-    target: target
+
+compiler.getSourceCacheKey = function(relPath, arch){
+  var key = relPath;
+  if(arch.pkg.name)
+    key = arch.pkg.name + "_" + key;
+  return key;
+}
+
+compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
+  if(!process.env.METEOR_SOURCE_CACHE)
+    return;
+
+  var key = compiler.getSourceCacheKey(relPath, arch);
+  //console.log(key, target);
+
+  var now = (new Date).getTime();
+
+  //Assume only js has arch-specific builds
+  if(target === "js"){
+    if(compiler.sourceCache[key]){
+      compiler.sourceCache[key].mtime = now;
+    }else{
+      compiler.sourceCache[key] = {
+        target: target,
+        mtime: now
+      };
+    }
+    compiler.sourceCache[key][arch.arch] = compiledItem;
+  }else{
+    compiler.sourceCache[key] = {
+      mtime: now,
+      data: compiledItem,
+      target: target
+    };
   }
 }
 
@@ -53,6 +80,8 @@ compiler.compile = function (packageSource, options) {
   var plugins = {};
 
   var pluginProviderPackageNames = {};
+
+  console.time("Build plugins");
 
   // Build plugins
   _.each(packageSource.pluginInfo, function (info) {
@@ -98,7 +127,9 @@ compiler.compile = function (packageSource, options) {
       plugins[info.name][buildResult.image.arch] = buildResult.image;
     });
   });
-
+  
+  console.timeEnd("Build plugins");
+  
   // Grab any npm dependencies. Keep them in a cache in the package
   // source directory so we don't have to do this from scratch on
   // every build.
@@ -139,6 +170,10 @@ compiler.compile = function (packageSource, options) {
   });
 
   _.each(packageSource.architectures, function (unibuild) {
+    if(process.env.METEOR_DISABLE_CORDOVA && unibuild.arch === "web.cordova")
+      return;
+    if(process.env.METEOR_DISABLE_BROWSER && unibuild.arch === "web.browser")
+      return;
     var unibuildResult = compileUnibuild({
       isopack: isopk,
       sourceArch: unibuild,
@@ -321,9 +356,10 @@ var compileUnibuild = function (options) {
       hash: hash
     };
 
-    compiler.addToSourceCache(oRelPath, data, "resources");
+    compiler.addToSourceCache(oRelPath, data, "resources", inputSourceArch);
     resources.push(data);
   };
+
   log("Arch: " + inputSourceArch.arch);
   _.each(sourceItems, function (source) {
     var relPath = source.relPath;
@@ -333,17 +369,20 @@ var compileUnibuild = function (options) {
     var file = watch.readAndWatchFileWithHash(watchSet, absPath);
     var contents = file.contents;
 
-    if (process.env.METEOR_SOURCE_CACHE && compiler.sourceCache[relPath] &&
-        fs.statSync(absPath).mtime < compiler.sourceCache[relPath].mtime) {
-      if(compiler.sourceCache[relPath].target === "js"){
+    var key = compiler.getSourceCacheKey(relPath, inputSourceArch);
+    //console.log("lookup", key);
+    if (process.env.METEOR_SOURCE_CACHE && compiler.sourceCache[key] &&
+        compiler.sourceCache[key][inputSourceArch.arch] &&
+        fs.statSync(absPath).mtime < compiler.sourceCache[key].mtime) {
+      if(compiler.sourceCache[key].target === "js"){
         //Retrieve file from the source cache unless it's already in the prelink cache.
         //if(! compiler.prelinkCache[arch][relPath]){
-        js.push(compiler.sourceCache[relPath].data);
-        //log("Taking source item " + relPath + " from cache");
+        js.push(compiler.sourceCache[key][inputSourceArch.arch]);
+        log("Taking source item " + key + " from cache");
         //}
       }else{
-        resources.push(compiler.sourceCache[relPath].data);
-        //log("Taking source item " + relPath + " from cache");
+        resources.push(compiler.sourceCache[key].data);
+        log("Taking source item " + key + " from cache");
       };
       return;
     }
@@ -634,7 +673,7 @@ var compileUnibuild = function (options) {
           data: new Buffer(options.data, 'utf8')
         };
 
-        compiler.addToSourceCache(options.path, data, "resources");
+        compiler.addToSourceCache(options.path, data, "resources", inputSourceArch);
         resources.push(data);
       },
 
@@ -672,7 +711,7 @@ var compileUnibuild = function (options) {
           sourceMap: options.sourceMap
         };
 
-        compiler.addToSourceCache(options.path, data, "resources");
+        compiler.addToSourceCache(options.path, data, "resources", inputSourceArch);
         resources.push(data);
       },
 
@@ -715,7 +754,7 @@ var compileUnibuild = function (options) {
           sourceHash: options._hash
         };
 
-        compiler.addToSourceCache(options.sourcePath, data, "js");
+        compiler.addToSourceCache(options.sourcePath, data, "js", inputSourceArch);
         js.push(data);
       },
 

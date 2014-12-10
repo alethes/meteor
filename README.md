@@ -13,11 +13,12 @@ All optimizations prototyped in this fork will be listed below along with the sp
 
 Currently prototyped optimizations:
 -------------------------------------------------------
-* **Source item cache** (enabled by setting the METEOR_SOURCE_CACHE environment variable) - keeps the results of already compiled source items in memory. The prepared resources are reused during builds for different architectures (os, webbrowser, cordova) and, most importantly, in subsequent builds. In the example app, it leads to around 50x speed-up in source item processing time (down from ~7s to ~150ms), virtually erradicating the largest bottleneck of the current build process. Overall performance gain: **Initial build: 1.6x, repeated builds: 2.0x**
+* **Source item cache** (enabling: `METEOR_SOURCE_CACHE=1 meteor`) - keeps the results of already compiled source items in memory. The prepared resources are reused during builds for different architectures (os, webbrowser, cordova) and, most importantly, in subsequent builds. In the example app, it leads to around 50x speed-up in source item processing time (down from ~7s to ~150ms), virtually erradicating the largest bottleneck of the current build process. **Performance gain: ~1.1x (initial build) or ~1.8x (repeated builds)**
+* **Possibility of disabling Cordova builds** (enabling: `METEOR_DISABLE_CORDOVA=1 meteor` - disables builds for one of three standard 'architectures'. Irrelevant in purely server-side apps/packages. **Performance gain: ~1.5x** 
+* **Possibility of disabling browser builds** (enabling: `METEOR_DISABLE_BROWSER=1 meteor` - disables builds for Cordova - one of three standard 'architectures'. Irrelevant in purely server-side apps/packages. **Performance gain: ~1.5x** 
  
 Ideas for further improvement:
 * **Linker cache**
-* **Possibility of disabling archs (particularly cordova) when not needed**
 
 # Meteor
 
