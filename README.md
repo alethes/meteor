@@ -5,11 +5,11 @@ This fork is gonna be dedicated to one thing and one thing only: killing perform
 
 The purpose of this project is to come up with and test various improvements to the Meteor bundler, linker and compiler. I'm putting strong emphasis on the repeated builds triggered after file changes. The main goal is to streamline the Meteor development process and shorten the excruciating code update cycle.
 
-Many great improvements are currently being made by the Meteor Development Group. In particular, recent changes on the devel branch drastically reduced the run time of the constraint solver. However the build process is still extremely suboptimal, repeating all the work on every file change.
+Many great improvements are currently being made by the Meteor Development Group. In particular, recent changes on the devel branch drastically reduced the run time of the constraint solver. However, the performance of the build process is still extremely suboptimal, repeating virtually all the work on every file change.
 
-For a start, it'd be good to get the Meteor tool make use of the DRY principle. Why process all the files again and again every single change in the code? Let's make some use of the work that's already been done...
+For a start, it'd be good to get the Meteor tool make use of the DRY principle. Why process all the files again and again after every change in the code? Let's make some use of the work that's already been done...
 
-All optimizations prototyped in this fork will be listed below, along with the speed improvements registered in a large example app using coffeescript, stylus and jade, compared to the plain devel version of Meteor.
+All optimizations prototyped in this fork will be listed below along with the speed improvements (registered in a large example app using coffeescript, stylus and jade) compared to the plain devel version of Meteor.
 
 Currently prototyped optimizations:
 -------------------------------------------------------
