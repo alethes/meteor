@@ -339,15 +339,16 @@ var compileUnibuild = function (options) {
         //Retrieve file from the source cache unless it's already in the prelink cache.
         //if(! compiler.prelinkCache[arch][relPath]){
         js.push(compiler.sourceCache[relPath].data);
-        log("Taking source item " + relPath + " from cache");
+        //log("Taking source item " + relPath + " from cache");
         //}
-      }else
+      }else{
         resources.push(compiler.sourceCache[relPath].data);
-        log("Taking source item " + relPath + " from cache");
+        //log("Taking source item " + relPath + " from cache");
+      };
       return;
     }
 
-    log("Adding source item " + relPath)
+    //log("Adding source item " + relPath)
 
     if (contents === null) {
       buildmessage.error("File not found: " + source.relPath);

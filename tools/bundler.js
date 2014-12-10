@@ -1945,7 +1945,7 @@ var writeSiteArchive = function (targets, outputPath, options) {
  * you are testing!
  */
 exports.bundle = function (options) {
-  console.time("bundle");
+  console.time("bundler");
   var projectContext = options.projectContext;
 
   var outputPath = options.outputPath;
@@ -2093,6 +2093,8 @@ exports.bundle = function (options) {
 
   if (success && messages.hasMessages())
     success = false; // there were errors
+  
+  console.timeEnd("bundler");
 
   return {
     errors: success ? false : messages,
@@ -2100,7 +2102,6 @@ exports.bundle = function (options) {
     clientWatchSet: clientWatchSet,
     starManifest: starResult && starResult.starManifest
   };
-  console.timeEnd("bundle");
 };
 
 // Make a JsImage object (a complete, linked, ready-to-go JavaScript
