@@ -32,6 +32,8 @@ var log = function(msg){
   console.log(msg + "                  ");
 }
 
+compiler.prelinkCache = {}
+
 compiler.sourceCache = {}
 
 compiler.getSourceCacheKey = function(relPath, arch){
@@ -52,6 +54,8 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
 
   //Assume only js has arch-specific builds
   if(target === "js"){
+    for(cArch in compiler.prelinkCache)
+      delete compiler.prelinkCache[cArch][relPath];
     if(compiler.sourceCache[key]){
       compiler.sourceCache[key].mtime = now;
     }else{
@@ -62,6 +66,8 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
     }
     compiler.sourceCache[key][arch.arch] = compiledItem;
   }else{
+    if(compiledItem.type === "css")
+      console.log(key);
     compiler.sourceCache[key] = {
       mtime: now,
       data: compiledItem,
@@ -80,8 +86,6 @@ compiler.compile = function (packageSource, options) {
   var plugins = {};
 
   var pluginProviderPackageNames = {};
-
-  console.time("Build plugins");
 
   // Build plugins
   _.each(packageSource.pluginInfo, function (info) {
@@ -127,8 +131,6 @@ compiler.compile = function (packageSource, options) {
       plugins[info.name][buildResult.image.arch] = buildResult.image;
     });
   });
-  
-  console.timeEnd("Build plugins");
   
   // Grab any npm dependencies. Keep them in a cache in the package
   // source directory so we don't have to do this from scratch on
@@ -215,6 +217,9 @@ var compileUnibuild = function (options) {
   // longer need a buildOfPath entry in buildinfo.json.)
   pluginProviderPackageNames[isopk.name] = true;
   var watchSet = inputSourceArch.watchSet.clone();
+
+  if(!compiler.prelinkCache[inputSourceArch.arch])
+    compiler.prelinkCache[inputSourceArch.arch] = {};
 
   // *** Determine and load active plugins
 
@@ -343,8 +348,9 @@ var compileUnibuild = function (options) {
 
   // *** Process each source file
   var addAsset = function (contents, relPath, hash) {
-    // XXX hack
     var oRelPath = relPath;
+
+    // XXX hack
     if (! inputSourceArch.pkg.name)
       relPath = relPath.replace(/^(private|public)\//, '');
 
@@ -370,24 +376,25 @@ var compileUnibuild = function (options) {
     var contents = file.contents;
 
     var key = compiler.getSourceCacheKey(relPath, inputSourceArch);
-    //console.log("lookup", key);
+    
+    //console.log("lookup", key, !!compiler.sourceCache[key]);
     if (process.env.METEOR_SOURCE_CACHE && compiler.sourceCache[key] &&
-        compiler.sourceCache[key][inputSourceArch.arch] &&
+        (compiler.sourceCache[key].target !== "js" || compiler.sourceCache[key][inputSourceArch.arch]) &&
         fs.statSync(absPath).mtime < compiler.sourceCache[key].mtime) {
       if(compiler.sourceCache[key].target === "js"){
-        //Retrieve file from the source cache unless it's already in the prelink cache.
-        //if(! compiler.prelinkCache[arch][relPath]){
-        js.push(compiler.sourceCache[key][inputSourceArch.arch]);
-        log("Taking source item " + key + " from cache");
-        //}
+        //Retrieve the file from the source cache unless it's already in the prelink cache.
+        if(!compiler.prelinkCache[inputSourceArch.arch][relPath]){
+          js.push(compiler.sourceCache[key][inputSourceArch.arch]);
+        //log("Taking source item " + key + " from cache");
+        }
       }else{
         resources.push(compiler.sourceCache[key].data);
-        log("Taking source item " + key + " from cache");
+        //log("Taking source item " + key + " from cache");
       };
       return;
     }
 
-    //log("Adding source item " + relPath)
+    log(inputSourceArch.arch + ": Adding source item " + relPath);
 
     if (contents === null) {
       buildmessage.error("File not found: " + source.relPath);
@@ -702,7 +709,6 @@ var compileUnibuild = function (options) {
                           "web targets");
         if (typeof options.data !== "string")
           throw new Error("'data' option to addStylesheet must be a string");
-        
         var data = {
           type: "css",
           refreshable: true,
@@ -711,7 +717,7 @@ var compileUnibuild = function (options) {
           sourceMap: options.sourceMap
         };
 
-        compiler.addToSourceCache(options.path, data, "resources", inputSourceArch);
+        compiler.addToSourceCache(relPath, data, "resources", inputSourceArch);
         resources.push(data);
       },
 
@@ -823,6 +829,7 @@ var compileUnibuild = function (options) {
     jsAnalyze = isopackets.load('js-analyze')['js-analyze'].JSAnalyze;
   }
 
+  console.time("prelink");
   var results = linker.prelink({
     inputFiles: js,
     useGlobalNamespace: isApp,
@@ -835,8 +842,10 @@ var compileUnibuild = function (options) {
     name: inputSourceArch.pkg.name || null,
     declaredExports: _.pluck(inputSourceArch.declaredExports, 'name'),
     jsAnalyze: jsAnalyze,
-    noLineNumbers: noLineNumbers
+    noLineNumbers: noLineNumbers,
+    fileCache: compiler.prelinkCache[inputSourceArch.arch]
   });
+  console.timeEnd("prelink");
 
   // *** Determine captured variables
   var packageVariables = [];

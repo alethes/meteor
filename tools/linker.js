@@ -524,9 +524,19 @@ var prelink = function (options) {
     noLineNumbers: options.noLineNumbers
   });
 
+  console.log(options.inputFiles.length);
   _.each(options.inputFiles, function (inputFile) {
     module.addFile(inputFile);
   });
+
+  if(options.fileCache){
+    for(f in options.fileCache){
+      module.files.push(options.fileCache[f]);
+    }
+    _.each(module.files, function (prelinkedFile) {
+      options.fileCache[prelinkedFile.sourcePath] = prelinkedFile;
+    });
+  }
 
   // Do static analysis to compute module-scoped variables. Error recovery from
   // the static analysis mutates the sources, so this has to be done before
