@@ -1886,6 +1886,8 @@ var writeSiteArchive = function (targets, outputPath, options) {
   }
 };
 
+var clientTargetCache = {};
+
 ///////////////////////////////////////////////////////////////////////////////
 // Main
 ///////////////////////////////////////////////////////////////////////////////
@@ -2024,15 +2026,26 @@ exports.bundle = function (options) {
       isopackCache: projectContext.isopackCache
     }).isopack;
     console.timeEnd("compilation");
+    
     console.log("Client changed: ", app.archChanged["web.browser"]);
     console.time("Client targets");
-    var clientTargets = [];
-    // Client
-    _.each(webArchs, function (arch) {
-      var client = makeClientTarget(app, arch);
-      clientTargets.push(client);
-      targets[arch] = client;
-    });
+    //Reuse a recent clientTarget if no changes were made to the client-side code.
+    if(process.env.METEOR_TARGET_CACHE && 
+        !app.archChanged["web.browser"] && clientTargetCache.clientTargets){
+      var clientTargets = clientTargetCache.clientTargets;
+      for(i in clientTargetCache.targets)
+        targets[i] = clientTargetCache.targets[i]
+    }else{
+      var clientTargets = [];
+      clientTargetCache.targets = {}
+      // Client
+      _.each(webArchs, function (arch) {
+        var client = makeClientTarget(app, arch);
+        clientTargets.push(client);
+        targets[arch] = clientTargetCache.targets[arch] = client;
+      });
+      clientTargetCache.clientTargets = clientTargets;
+    }
 
     console.timeEnd("Client targets");
     // Server

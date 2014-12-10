@@ -534,7 +534,7 @@ var prelink = function (options) {
   if(options.fileCache){
     _.each(options.inputFiles, function (inputFile) {
       if(_.isString(inputFile)){
-        console.log("PRELINK CACHE " + inputFile);
+        //console.log("From prelink cache: " + inputFile);
         module.files.push(options.fileCache[inputFile]);
       }else{
         module.addFile(inputFile); 

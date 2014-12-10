@@ -50,7 +50,11 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
   var key = compiler.getSourceCacheKey(relPath, arch);
   //console.log(key, target);
 
-  var now = (new Date).getTime();
+  var now = new Date;
+  var archType = arch.arch === "os" ? "os" : "web";
+  var mtime = {};
+  mtime[archType] = now;
+
 
   //Assume only js has arch-specific builds
   if(target === "js"){
@@ -59,12 +63,10 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
       //log("Deleting " + relPath + " from prelinkCache for " + cArch);
       delete compiler.prelinkCache[cArch][relPath];
     }
-    
+
     if(compiler.sourceCache[key]){
-      compiler.sourceCache[key].mtime[arch.arch] = now;
+      compiler.sourceCache[key].mtime[archType] = now;
     }else{
-      var mtime = {};
-      mtime[arch.arch] = now;
       compiler.sourceCache[key] = {
         target: target,
         mtime: mtime
@@ -73,7 +75,7 @@ compiler.addToSourceCache = function (relPath, compiledItem, target, arch) {
     compiler.sourceCache[key][arch.arch] = compiledItem;
   }else{
     compiler.sourceCache[key] = {
-      mtime: now,
+      mtime: mtime,
       data: compiledItem,
       target: target
     };
@@ -387,15 +389,16 @@ var compileUnibuild = function (options) {
 
     var key = compiler.getSourceCacheKey(relPath, inputSourceArch);
     
+    var archType = inputSourceArch.arch === "os" ? "os" : "web";
+    
     //console.log("lookup", key, !!compiler.sourceCache[key]);
-    //if(compiler.sourceCache[key])
-    //  console.log("Updated: ", fs.statSync(absPath).mtime > compiler.sourceCache[key].mtime);
+
     if (process.env.METEOR_SOURCE_CACHE && compiler.sourceCache[key] &&
         (compiler.sourceCache[key].target !== "js" || compiler.sourceCache[key][inputSourceArch.arch]) &&
-        fs.statSync(absPath).mtime < compiler.sourceCache[key].mtime) {
+        fs.statSync(absPath).mtime < compiler.sourceCache[key].mtime[archType]) {
       if(compiler.sourceCache[key].target === "js"){
         //Retrieve the file from the source cache unless it's already in the prelink cache.
-        //Then, push the file name to the list of js source items to be replaced during prelinking
+        //Otherwise, push the file name to the list of js source items to be replaced during prelinking
         //with an appropriate entry from the prelink cache.
         if(process.env.METEOR_PRELINK_CACHE){
           if(compiler.prelinkCache[inputSourceArch.arch][relPath]){
@@ -412,7 +415,7 @@ var compileUnibuild = function (options) {
       };
       return;
     }
-
+    
     isopk.archChanged[inputSourceArch.arch] = true;
 
     if (contents === null) {
