@@ -34,6 +34,8 @@ var log = function(msg){
 
 compiler.sourceCache = {}
 compiler.addToSourceCache = function (relPath, compiledItem, target) {
+  if(!process.env.METEOR_SOURCE_CACHE)return;
+  
   compiler.sourceCache[relPath] = {
     mtime: (new Date).getTime(),
     data: compiledItem,
@@ -331,7 +333,7 @@ var compileUnibuild = function (options) {
     var file = watch.readAndWatchFileWithHash(watchSet, absPath);
     var contents = file.contents;
 
-    if (false && compiler.sourceCache[relPath] &&
+    if (process.env.METEOR_SOURCE_CACHE && compiler.sourceCache[relPath] &&
         fs.statSync(absPath).mtime < compiler.sourceCache[relPath].mtime) {
       if(compiler.sourceCache[relPath].target === "js"){
         //Retrieve file from the source cache unless it's already in the prelink cache.
