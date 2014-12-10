@@ -16,7 +16,7 @@ Currently prototyped optimizations:
 * **Source item cache** (enable with: `METEOR_SOURCE_CACHE=1`) - stores the results of already compiled source items in memory. The prepared resources are reused during builds for different architectures (os, webbrowser, cordova) and, most importantly, in subsequent builds. In the example app, it leads to around 50x speed-up in source item processing time (down from ~7 s to ~150 ms), virtually erradicating the largest bottleneck of the current build process. **Overall performance gain: ~1.1x (initial build) or ~1.8x (repeated builds)**
 * **Prelink cache** - (enable with: `METEOR_PRELINK_CACHE=1`) stores the prelinked JS files in memory. Requires source item cache. Makes repeated prelinking around 2 times faster. **Overall performance gain: ~1.1x (initial build) or ~1.3x (repeated builds)**
 * **Client target cache** (enable with: `METEOR_TARGET_CACHE=1` - reuses recent client targets when there're no changes to the client-side code. The reverse has already been implemented in Meteor. **Overall performance gain: ~1.1x (repeated builds)**
-* **Option to disable Cordova builds** (enable with: `METEOR_DISABLE_CORDOVA=1` - disables builds for one of three standard 'architectures'. Irrelevant in purely server-side apps/packages. **Overall performance gain: ~1.5x (initial and repeated builds)**
+* **Option to disable Cordova builds** (enable with: `METEOR_DISABLE_CORDOVA=1` - disables builds for one of three standard 'architectures'. To be used in web apps, when there's no need to build for Cordova/PhoneGap. Irrelevant in purely server-side apps/packages. **Overall performance gain: ~1.5x (initial and repeated builds)**
 
 Example command
 ----------------
