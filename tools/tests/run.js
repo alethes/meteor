@@ -141,7 +141,6 @@ selftest.define("run --once", function () {
   s.set("RUN_ONCE_OUTCOME", "exit");
   s.write("junk.js", "]");
   run = s.run("--once");
-  run.tellMongo(MONGO_LISTENING);
   run.waitSecs(5);
   run.matchErr("Build failed");
   run.matchErr("Unexpected token");
@@ -187,7 +186,7 @@ selftest.define("run errors", function () {
   f.wait();
 
   var run = s.run("-p", proxyPort);
-  _.times(3, function () {
+  _.times(2, function () {
     run.waitSecs(30);
     run.match("Unexpected mongo exit code 48. Restarting.");
   });
@@ -314,7 +313,7 @@ selftest.define("run with mongo crash", ["checkout"], function () {
   run.match("prevented startup");
   run.match("file change.\n");
   run.tellMongo({exit: 23});
-  run.read('Unexpected mongo exit code 23. Restarting.\n');
+  run.match('Unexpected mongo exit code 23. Restarting.\n');
   run.tellMongo({exit: 46});
   run.read('Unexpected mongo exit code 46. Restarting.\n');
   run.tellMongo({exit: 47});

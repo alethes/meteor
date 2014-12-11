@@ -10,11 +10,10 @@ var bundler = require('./bundler.js');
 var release = require('./release.js');
 var buildmessage = require('./buildmessage.js');
 var runLog = require('./run-log.js');
-var catalog = require('./catalog.js');
 var stats = require('./stats.js');
 var cordova = require('./commands-cordova.js');
 var Console = require('./console.js').Console;
-var compiler = require('./compiler.js');
+var catalog = require('./catalog.js');
 
 // Parse out s as if it were a bash command line.
 var bashParse = function (s) {
@@ -345,9 +344,9 @@ var AppRunner = function (options) {
   self.exitFuture = null;
   self.watchFuture = null;
 
-  // Futures added to this list by calling self.awaitFutureBeforeStart
-  // will be waited on just before self.appProcess.start() is called.
-  self._beforeStartFutures = [];
+  // If this future is set with self.awaitFutureBeforeStart, then for the first
+  // run, we will wait on it just before self.appProcess.start() is called.
+  self._beforeStartFuture = null;
 };
 
 _.extend(AppRunner.prototype, {
@@ -388,14 +387,21 @@ _.extend(AppRunner.prototype, {
 
     self._runFutureReturn({ outcome: 'stopped' });
     self._watchFutureReturn();
-
+    if (self._beforeStartFuture && ! self._beforeStartFuture.isResolved()) {
+      // If we stopped before mongod started (eg, due to mongod startup
+      // failure), unblock the runner fiber from waiting for mongod to start.
+      self._beforeStartFuture.return(true);
+    }
     self.exitFuture.wait();
     self.exitFuture = null;
   },
 
   awaitFutureBeforeStart: function(future) {
-    if (future instanceof Future) {
-      this._beforeStartFutures.push(future);
+    var self = this;
+    if (self._beforeStartFuture) {
+      throw new Error("awaitFutureBeforeStart called twice?");
+    } else if (future instanceof Future) {
+      self._beforeStartFuture = future;
     } else {
       throw new Error("non-Future passed to awaitFutureBeforeStart");
     }
@@ -422,6 +428,11 @@ _.extend(AppRunner.prototype, {
 
     var bundleApp = function () {
       if (! firstRun) {
+        // If the build fails in a way that could be fixed by a refresh, allow
+        // it even if we refreshed previously, since that might have been a
+        // little while ago.
+        catalog.triedToRefreshRecently = false;
+
         // If this isn't the first time we've run, we need to reset the project
         // context since everything we have cached may have changed.
         // XXX We can try to be a little less conservative here:
@@ -623,8 +634,11 @@ _.extend(AppRunner.prototype, {
     });
 
     // Empty self._beforeStartFutures and await its elements.
-    if (self._beforeStartFutures.length > 0) {
-      Future.wait(self._beforeStartFutures.splice(0));
+    if (options.firstRun && self._beforeStartFuture) {
+      var stopped = self._beforeStartFuture.wait();
+      if (stopped) {
+        return true;
+      }
     }
 
     appProcess.start();
@@ -788,8 +802,6 @@ _.extend(AppRunner.prototype, {
           runLog.log('Exited from signal: ' + runResult.signal, { arrow: true });
         } else if (runResult.code !== undefined) {
           runLog.log('Exited with code: ' + runResult.code, { arrow: true });
-          //compiler.sourceCache = {};
-          //compiler.prelinkCache = {};
         } else {
           // explanation should already have been logged
         }
