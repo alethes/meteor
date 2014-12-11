@@ -15,6 +15,7 @@ var Console = require('./console.js').Console;
 var catalog = exports;
 
 catalog.refreshFailed = undefined;
+catalog.triedToRefreshRecently = false;
 
 catalog.Refresh = {};
 
@@ -42,7 +43,6 @@ catalog.Refresh.OnceAtStart.prototype.beforeCommand = function () {
 catalog.Refresh.Never = function (options) {
   var self = this;
   self.options = _.extend({}, options);
-  self.doesNotUsePackages = true;
 };
 
 // Refreshes the catalog. Returns true on success.
@@ -52,6 +52,7 @@ catalog.Refresh.Never = function (options) {
 // THIS IS A HIGH-LEVEL UI COMMAND. DO NOT CALL IT FROM LOW-LEVEL CODE (ie, call
 // it only from main.js or command implementations).
 catalog.refreshOrWarn = function (options) {
+  catalog.triedToRefreshRecently = true;
   try {
     catalog.official.refresh(options);
     catalog.refreshFailed = false;
@@ -106,26 +107,20 @@ var ACCEPT_NON_EMPTY = function (result) {
 };
 
 // The LayeredCatalog provides a way to query multiple catalogs in a uniform way
-// A LayeredCatalog typically contains:
+// A LayeredCatalog contains:
 //  - a local catalog referencing the packages of the project
 //  - a reference to the official catalog
-var LayeredCatalog = function() {
+var LayeredCatalog = function (localCatalog, otherCatalog) {
   var self = this;
 
-  self.localCatalog = null;
-  self.otherCatalog = null;
+  self.localCatalog = localCatalog;
+  self.otherCatalog = otherCatalog;
 };
 
 _.extend(LayeredCatalog.prototype, {
   toString: function () {
     var self = this;
     return "LayeredCatalog []";
-  },
-
-  setCatalogs: function(local, remote) {
-    var self = this;
-    self.localCatalog = local;
-    self.otherCatalog = remote;
   },
 
   getLatestVersion: function (name) {
@@ -146,14 +141,6 @@ _.extend(LayeredCatalog.prototype, {
       return result;
     }
     return self.otherCatalog[f].apply(self.otherCatalog, splittedArgs);
-  },
-
-  getLocalPackageNames: function () {
-    return this.localCatalog.getAllPackageNames();
-  },
-
-  getPackageSource: function (packageName) {
-    return this.localCatalog.getPackageSource(packageName);
   },
 
   getPackage: function (name) {
@@ -179,14 +166,6 @@ _.extend(LayeredCatalog.prototype, {
       result = self.otherCatalog.getVersion(name, version);
     }
     return result;
-  },
-
-  initialize: function (options) {
-    this.localCatalog.initialize(options);
-  },
-
-  reset: function () {
-    this.localCatalog.reset();
   },
 
   // As getVersion, but returns info on the latest version of the

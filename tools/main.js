@@ -382,35 +382,32 @@ var springboard = function (rel, options) {
 
   var toolsPkg = rel.getToolsPackage();
   var toolsVersion = rel.getToolsVersion();
+  var packageMapModule = require('./package-map.js');
+  var versionMap = {};
+  versionMap[toolsPkg] = toolsVersion;
+  var packageMap = new packageMapModule.PackageMap(versionMap);
 
   // XXX split better
-  try {
-    Console.withProgressDisplayVisible(function () {
-      buildmessage.enterJob({
-        title: "Downloading tools package " + toolsPkg + "@" + toolsVersion
-      }, function () {
-        tropohouse.default.maybeDownloadPackageForArchitectures({
-          packageName: toolsPkg,
-          version: toolsVersion,
-          architectures: [archinfo.host()]
-        });
-      });
+  Console.withProgressDisplayVisible(function () {
+    var messages = buildmessage.capture(function () {
+      tropohouse.default.downloadPackagesMissingFromMap(packageMap);
     });
-  } catch (err) {
-    // We have failed to download the tool that we are supposed to springboard
-    // to! That's bad. Let's exit.
-    if (options.fromApp) {
-      Console.error(
-        "Sorry, this project uses " + rel.getDisplayName() + ", which is not",
-        "installed and could not be downloaded. Please check to make sure",
-        "that you are online.");
-    } else {
-      Console.error(
-        "Sorry, " + rel.getDisplayName() + " is not installed and could not",
-        "be downloaded. Please check to make sure that you are online.");
+    if (messages.hasMessages()) {
+      // We have failed to download the tool that we are supposed to springboard
+      // to! That's bad. Let's exit.
+      if (options.fromApp) {
+        Console.error(
+          "Sorry, this project uses " + rel.getDisplayName() + ", which is not",
+          "installed and could not be downloaded. Please check to make sure",
+          "that you are online.");
+      } else {
+        Console.error(
+          "Sorry, " + rel.getDisplayName() + " is not installed and could not",
+          "be downloaded. Please check to make sure that you are online.");
+      }
+      process.exit(1);
     }
-    process.exit(1);
-  }
+  });
 
   var packagePath = tropohouse.default.packagePath(toolsPkg, toolsVersion);
   var toolIsopack = new isopack.Isopack;
@@ -1301,9 +1298,7 @@ Fiber(function () {
     } else if (e instanceof main.SpringboardToLatestRelease) {
       // Load the metadata for the latest release (or at least, the latest
       // release we know about locally). We should only do this if we know there
-      // is some latest release on this track. Note that this is only throw by
-      // 'update' and 'create', which are both catalog.Refresh.OnceAtStart
-      // commands, so we ought to have decent knowledge of the latest release.
+      // is some latest release on this track.
       var latestRelease = release.load(release.latestKnown(e.track));
       springboard(latestRelease, { releaseOverride: latestRelease.name });
       // (does not return)
