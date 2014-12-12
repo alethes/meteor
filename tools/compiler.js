@@ -10,6 +10,7 @@ var isopackets = require('./isopackets.js');
 var linker = require('./linker.js');
 var meteorNpm = require('./meteor-npm.js');
 var watch = require('./watch.js');
+var Console = require('./console.js').Console;
 
 var compiler = exports;
 
@@ -87,6 +88,7 @@ compiler.compile = function (packageSource, options) {
 
   var packageMap = options.packageMap;
   var isopackCache = options.isopackCache;
+  var includeCordovaUnibuild = options.includeCordovaUnibuild;
 
   var pluginWatchSet = packageSource.pluginWatchSet.clone();
   var plugins = {};
@@ -96,7 +98,7 @@ compiler.compile = function (packageSource, options) {
   // Build plugins
   _.each(packageSource.pluginInfo, function (info) {
     buildmessage.enterJob({
-      title: "Building plugin `" + info.name +
+      title: "building plugin `" + info.name +
         "` in package `" + packageSource.name + "`",
       rootPath: packageSource.sourceRoot
     }, function () {
@@ -178,10 +180,9 @@ compiler.compile = function (packageSource, options) {
   });
 
   _.each(packageSource.architectures, function (unibuild) {
-    if(process.env.METEOR_DISABLE_CORDOVA && unibuild.arch === "web.cordova")
+    if (unibuild.arch === 'web.cordova' && ! includeCordovaUnibuild)
       return;
-    if(process.env.METEOR_DISABLE_BROWSER && unibuild.arch === "web.browser")
-      return;
+
     var unibuildResult = compileUnibuild({
       isopack: isopk,
       sourceArch: unibuild,
@@ -275,41 +276,44 @@ var compileUnibuild = function (options) {
   activePluginPackages = _.uniq(activePluginPackages);
 
   // *** Assemble the list of source file handlers from the plugins
-  var allHandlers = {};
+  var allHandlersWithPkgs = {};
   var sourceExtensions = {};  // maps source extensions to isTemplate
 
   sourceExtensions['js'] = false;
-  allHandlers['js'] = function (compileStep) {
-    // This is a hardcoded handler for *.js files. Since plugins
-    // are written in JavaScript we have to start somewhere.
+  allHandlersWithPkgs['js'] = {
+    pkgName: null /* native handler */,
+    handler: function (compileStep) {
+      // This is a hardcoded handler for *.js files. Since plugins
+      // are written in JavaScript we have to start somewhere.
 
-    var options = {
-      data: compileStep.read().toString('utf8'),
-      path: compileStep.inputPath,
-      sourcePath: compileStep.inputPath,
-      _hash: compileStep._hash
-    };
+      var options = {
+        data: compileStep.read().toString('utf8'),
+        path: compileStep.inputPath,
+        sourcePath: compileStep.inputPath,
+        _hash: compileStep._hash
+      };
 
-    if (compileStep.fileOptions.hasOwnProperty("bare")) {
-      options.bare = compileStep.fileOptions.bare;
-    } else if (compileStep.fileOptions.hasOwnProperty("raw")) {
-      // XXX eventually get rid of backward-compatibility "raw" name
-      // XXX COMPAT WITH 0.6.4
-      options.bare = compileStep.fileOptions.raw;
+      if (compileStep.fileOptions.hasOwnProperty("bare")) {
+        options.bare = compileStep.fileOptions.bare;
+      } else if (compileStep.fileOptions.hasOwnProperty("raw")) {
+        // XXX eventually get rid of backward-compatibility "raw" name
+        // XXX COMPAT WITH 0.6.4
+        options.bare = compileStep.fileOptions.raw;
+      }
+
+      compileStep.addJavaScript(options);
     }
-
-    compileStep.addJavaScript(options);
   };
 
   _.each(activePluginPackages, function (otherPkg) {
     _.each(otherPkg.getSourceHandlers(), function (sourceHandler, ext) {
       // XXX comparing function text here seems wrong.
-      if (_.has(allHandlers, ext) &&
-          allHandlers[ext].toString() !== sourceHandler.handler.toString()) {
+      if (_.has(allHandlersWithPkgs, ext) &&
+          allHandlersWithPkgs[ext].handler.toString() !== sourceHandler.handler.toString()) {
         buildmessage.error(
           "conflict: two packages included in " +
             (inputSourceArch.pkg.name || "the app") + ", " +
-            (allHandlers[ext].pkg.name || "the app") + " and " +
+            (allHandlersWithPkgs[ext].pkgName || "the app") + " and " +
             (otherPkg.name || "the app") + ", " +
             "are both trying to handle ." + ext);
         // Recover by just going with the first handler we saw
@@ -321,7 +325,10 @@ var compileUnibuild = function (options) {
           !archinfo.matches(inputSourceArch.arch, sourceHandler.archMatching)) {
         return;
       }
-      allHandlers[ext] = sourceHandler.handler;
+      allHandlersWithPkgs[ext] = {
+        pkgName: otherPkg.name,
+        handler: sourceHandler.handler
+      };
       sourceExtensions[ext] = !!sourceHandler.isTemplate;
     });
   });
@@ -417,6 +424,7 @@ var compileUnibuild = function (options) {
     }
     
     isopk.archChanged[inputSourceArch.arch] = true;
+    Console.nudge(true);
 
     if (contents === null) {
       buildmessage.error("File not found: " + source.relPath);
@@ -430,8 +438,8 @@ var compileUnibuild = function (options) {
       var parts = filename.split('.');
       for (var i = 0; i < parts.length; i++) {
         var extension = parts.slice(i).join('.');
-        if (_.has(allHandlers, extension)) {
-          handler = allHandlers[extension];
+        if (_.has(allHandlersWithPkgs, extension)) {
+          handler = allHandlersWithPkgs[extension].handler;
           break;
         }
       }

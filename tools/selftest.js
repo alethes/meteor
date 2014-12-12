@@ -126,7 +126,8 @@ var setUpBuiltPackageTropohouse = function () {
   // Make an isopack cache that doesn't automatically save isopacks to disk and
   // has no access to versioned packages.
   tropohouseIsopackCache = new isopackCacheModule.IsopackCache({
-    packageMap: packageMap
+    packageMap: packageMap,
+    includeCordovaUnibuild: true
   });
   doOrThrow(function () {
     buildmessage.enterJob("building self-test packages", function () {
@@ -159,7 +160,7 @@ var newSelfTestCatalog = function () {
   var catalogLocal = require('./catalog-local.js');
   var selfTestCatalog = new catalogLocal.LocalCatalog;
   var messages = buildmessage.capture(
-    { title: "Scanning local core packages" },
+    { title: "scanning local core packages" },
     function () {
       // When building a fake warehouse from a checkout, we use local packages,
       // but *ONLY THOSE FROM THE CHECKOUT*: not app packages or $PACKAGE_DIRS

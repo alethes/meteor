@@ -15,6 +15,12 @@ exports.IsopackCache = function (options) {
   // cacheDir may be null; in this case, we just don't ever save things to disk.
   self.cacheDir = options.cacheDir;
 
+  // This is a bit of a hack, but basically: we really don't want to spend time
+  // building web.cordova unibuilds in a project that doesn't have any Cordova
+  // platforms. (Note that we need to be careful with 'meteor publish' to still
+  // publish a web.cordova unibuild!)
+  self._includeCordovaUnibuild = !! options.includeCordovaUnibuild;
+
   // Defines the versions of packages that we build. Must be set.
   self._packageMap = options.packageMap;
 
@@ -127,11 +133,16 @@ _.extend(exports.IsopackCache.prototype, {
     if (packageInfo.kind === 'local') {
       var packageNames =
             packageInfo.packageSource.getPackagesToLoadFirst(self._packageMap);
-      _.each(packageNames, function (depName) {
-        ensureLoaded(depName);
+      buildmessage.enterJob("preparing to build package " + name, function () {
+        _.each(packageNames, function (depName) {
+          ensureLoaded(depName);
+        });
+        // If we failed to load something that this package depends on, don't
+        // load it.
+        if (buildmessage.jobHasMessages())
+          return;
+        self._loadLocalPackage(name, packageInfo);
       });
-
-      self._loadLocalPackage(name, packageInfo);
     } else if (packageInfo.kind === 'versioned') {
       // We don't have to build this package, and we don't have to build its
       // dependencies either! Just load it from disk.
@@ -207,7 +218,8 @@ _.extend(exports.IsopackCache.prototype, {
         var compilerResult = compiler.compile(packageInfo.packageSource, {
           packageMap: self._packageMap,
           isopackCache: self,
-          noLineNumbers: self._noLineNumbers
+          noLineNumbers: self._noLineNumbers,
+          includeCordovaUnibuild: self._includeCordovaUnibuild
         });
         // Accept the compiler's result, even if there were errors (since it at
         // least will have a useful WatchSet and will allow us to keep going and
@@ -238,6 +250,14 @@ _.extend(exports.IsopackCache.prototype, {
     // up to date!
     if (! isopackBuildInfoJson)
       return false;
+
+    // If we include Cordova but this Isopack doesn't, or via versa, then we're
+    // not up to date.
+    if (self._includeCordovaUnibuild !==
+        isopackBuildInfoJson.includeCordovaUnibuild) {
+      return false;
+    }
+
     // If any of the direct dependencies changed their version or location, we
     // aren't up to date.
     if (!self._packageMap.isSupersetOfJSON(
