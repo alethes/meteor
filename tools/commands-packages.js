@@ -221,15 +221,23 @@ main.registerCommand({
       packageMapFilename: path.join(options.packageDir, '.versions'),
       // We always want to write our '.versions' package map, overriding a
       // comparison against the value of a release file that doesn't exist.
-      alwaysWritePackageMap: true
+      alwaysWritePackageMap: true,
+      // When we publish, we should always include web.cordova unibuilds, even
+      // though this temporary directory does not have any cordova platforms
+      forceIncludeCordovaUnibuild: true
     });
   } else {
     // We're in an app; let the app be our context, but make sure we don't
-    // overwrite .meteor/packages when we add some temporary constraints (which
-    // ensure that we can actually build the package and its tests).
+    // overwrite .meteor/packages or .meteor/versions when we add some temporary
+    // constraints (which ensure that we can actually build the package and its
+    // tests).
     projectContext = new projectContextModule.ProjectContext({
       projectDir: options.appDir,
-      neverWriteProjectConstraintsFile: true
+      neverWriteProjectConstraintsFile: true,
+      neverWritePackageMap: true,
+      // When we publish, we should always include web.cordova unibuilds, even
+      // if this project does not have any cordova platforms
+      forceIncludeCordovaUnibuild: true
     });
   }
 
@@ -323,7 +331,8 @@ main.registerCommand({
   main.captureAndExit("=> Errors while initializing project:", function () {
     projectContext.prepareProjectForBuild();
   });
-  projectContext.packageMapDelta.displayOnConsole();
+  // We don't display the package map delta here, because it includes adding the
+  // package's test and all the test's dependencies.
 
   var isopack = projectContext.isopackCache.getIsopack(packageName);
   if (! isopack) {
@@ -536,7 +545,10 @@ main.registerCommand({
   // Set up the project.
   var projectContext = new projectContextModule.ProjectContext({
     projectDir: tempProjectDir,
-    explicitlyAddedLocalPackageDirs: [packageDir]
+    explicitlyAddedLocalPackageDirs: [packageDir],
+    // When we publish, we should always include web.cordova unibuilds, even
+    // though this temporary directory does not have any cordova platforms
+    forceIncludeCordovaUnibuild: true
   });
   // Just get up to initializing the catalog. We're going to mutate the
   // constraints file a bit before we prepare the build.
@@ -735,7 +747,10 @@ main.registerCommand({
     var projectContext = new projectContextModule.ProjectContext({
       projectDir: tempProjectDir,  // won't have a packages dir, that's OK
       // seriously, we only want checkout packages
-      ignorePackageDirsEnvVar: true
+      ignorePackageDirsEnvVar: true,
+      // When we publish, we should always include web.cordova unibuilds, even
+      // though this temporary directory does not have any cordova platforms
+      forceIncludeCordovaUnibuild: true
     });
 
     // Read metadata and initialize catalog.
@@ -847,7 +862,7 @@ main.registerCommand({
     _.each(toPublish, function (packageName) {
       main.captureAndExit(
         "=> Errors while publishing:",
-        "Publishing package " + packageName,
+        "publishing package " + packageName,
         function () {
           var isopk = projectContext.isopackCache.getIsopack(packageName);
           if (! isopk)
@@ -1306,7 +1321,7 @@ main.registerCommand({
   }
 
 
-  buildmessage.enterJob({ title: 'Searching packages' }, function () {
+  buildmessage.enterJob({ title: 'searching packages' }, function () {
     _.each(allPackages, function (pack) {
       if (selector(pack, false)) {
         var vr;
@@ -2360,11 +2375,11 @@ main.registerCommand({
 
   // Before downloading anything, check that the catalog contains everything we
   // need for the OSes that the tool is built for.
-  var messages = buildmessage.capture(function () {
+  main.captureAndExit("=> Errors finding builds:", function () {
     _.each(osArches, function (osArch) {
       _.each(releaseRecord.packages, function (pkgVersion, pkgName) {
         buildmessage.enterJob({
-          title: "Looking up " + pkgName + "@" + pkgVersion + " on " + osArch
+          title: "looking up " + pkgName + "@" + pkgVersion + " on " + osArch
         }, function () {
           if (!catalog.official.getBuildsForArches(pkgName, pkgVersion, [osArch])) {
             buildmessage.error("missing build of " + pkgName + "@" + pkgVersion +
@@ -2374,11 +2389,6 @@ main.registerCommand({
       });
     });
   });
-
-  if (messages.hasMessages()) {
-    Console.printMessages(messages);
-    return 1;
-  };
 
   files.mkdir_p(outputDirectory);
 
